@@ -1,2 +1,2 @@
 bscscan-python >= 2.0.0
-cryptocompare
+pycoingecko
