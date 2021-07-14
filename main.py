@@ -7,8 +7,6 @@ import time
 
 
 API_KEY = 'BWPJX37Q9GKPHFFKWY6KEX7HTHACIB4533'
-BAN = set()
-
 # print(cryptocompare.get_price('BNB', currency='USD'))
 
 
@@ -23,54 +21,40 @@ def get_token_price(trade):
     date = datetime.fromtimestamp(int(trade['timeStamp']))
     id = get_token_id(trade)
     price = 0
-    if id != '' and id not in BAN:
+    if id != '':  # and id not in BAN
         try:
-            price = cg.get_coin_history_by_id(id, "{}-{}-{}".format(date.day, date.month, date.year))
-            price = price['market_data']['current_price']['bnb']
+            # price = cg.get_coin_history_by_id(id, "{}-{}-{}".format(date.day, date.month, date.year))
+            # price = price['market_data']['current_price']['bnb']
+            price = cg.get_coin_market_chart_range_by_id(id, 'bnb',
+                                                         trade['timeStamp'], str(int(trade['timeStamp']) + 3600))
+            price = price['prices'][0][1]
+        except IndexError as ie:
+            price = 0
+
         except KeyError as ke:
             price = 0
         except requests.exceptions.HTTPError as e429:
-            BAN.add(id)
             # time.sleep(60)
             price = 0
     return price
 
 
-
-def analyse_trade(trade, address):
-    n = 0 if trade[0]['from'].lower() == address.lower() else 1
-    id = get_token_id(trade[n])
-    if id == 'no such token':
-        return 0
-    # sold = cryptocompare.get_historical_price(trade[n]['tokenSymbol'].upper(),
-    #                                             'USD', trade[n]['timeStamp'])[trade[n]['tokenSymbol'].upper()]['USD']
-    #
-    # earned = cryptocompare.get_historical_price(trade[n % 2]['tokenSymbol'].upper(),
-    #                                             'USD', trade[n % 2]['timeStamp'])[trade[n % 2]['tokenSymbol'].upper()]['USD']
-    profit = 0
-    try:
-        date = datetime.fromtimestamp(int(trade[n]['timeStamp']))
-        sold = cg.get_coin_history_by_id(id, "{}-{}-{}".format(date.day, date.month, date.year))
-        sold = sold['market_data']['current_price']['bnb'] * int(trade[n]['value'])
-        
-        id = get_token_id(trade[n % 2])
-        date = datetime.fromtimestamp(int(trade[n % 2]['timeStamp']))
-        bought = cg.get_coin_history_by_id(id, "{}-{}-{}".format(date.day, date.month, date.year))
-        bought = bought['market_data']['current_price']['bnb'] * int(trade[n % 2]['value'])
-        profit = (sold - bought) / bought * 100  # count percents
-    except BaseException as be:
-        print(be.__class__, be)
-    return profit
-    # return sold - earned
+# sold = cryptocompare.get_historical_price(trade[n]['tokenSymbol'].upper(),
+#                                             'USD', trade[n]['timeStamp'])[trade[n]['tokenSymbol'].upper()]['USD']
+#
+# earned = cryptocompare.get_historical_price(trade[n % 2]['tokenSymbol'].upper(),
+#                                             'USD', trade[n % 2]['timeStamp'])[trade[n % 2]['tokenSymbol'].upper()]['USD']
 
 
 async def main():
-    address = input()  # 0xF082127438286454332EaC1C73e3c6EDa3e215aD
+    address = input()
     async with BscScan(API_KEY) as client:
+        curr_price = await client.get_bnb_last_price()
+        curr_price = float(curr_price['ethusd'])
         print('balance:',
-            await client.get_bnb_balance(
+            int(await client.get_bnb_balance(
                 address=address
-            )
+                )) / 1000000000000000000 * curr_price, 'USD'
         )
         address_trades = await client.get_bep20_token_transfer_events_by_address(  # get_normal_txs_by_address
                 address=address,
@@ -78,38 +62,29 @@ async def main():
                 endblock=999999999,
                 sort="asc"
             )
-        earnings = []
-        lt = {'timeStamp': -1}
-        pair = False
         bought_tokens = dict()
         percents = []
-        for trade in address_trades:
+        for trade in address_trades:  # maybe use % of sold to all amount of bought
             if trade.get('to').lower() == address.lower():
                 bought_tokens[trade.get('tokenSymbol')] = get_token_price(trade)
             else:
                 if trade.get('tokenSymbol') in bought_tokens:
                     if bought_tokens[trade.get('tokenSymbol')]:
-                        bought = bought_tokens[trade.get('tokenSymbol')] * int(trade['value'])
-                        sold = get_token_price(trade) * int(trade['value'])
+                        # k = int(trade.get('value')) / bought_tokens[trade.get('tokenSymbol')][1]
+                        bought = bought_tokens[trade.get('tokenSymbol')] * int(trade['value'])  # last buy price * sold value
+                        sold = get_token_price(trade) * int(trade['value'])  # price when sold * sold value
                         if bought != 0:
                             profit = (sold - bought) / bought * 100
                             if profit != 0.0:
-                                percents.append(profit)
-            # if lt.get('timeStamp') == trade.get('timeStamp') and not pair:
-            #     pair = True
-            #     try:
-            #         profit = analyse_trade([lt, trade], address)
-            #         if profit:
-            #             earnings.append(analyse_trade([lt, trade], address))
-            #     except TypeError as TE:
-            #         pass
-            # # elif not pair and trade['to'].lower() == address.lower():
-            # #     print('Income')
-            # #     pair = False
-            # else:
-            #     pair = False
-            # lt = trade
-        print('Average profit:', sum(percents) / len(percents))
+                                if len(percents) > 0 and (percents[-1] > profit + 0.5 or percents[-1] < profit - 0.5):
+                                    percents.append(profit)
+                                elif len(percents) == 0:
+                                    percents.append(profit)
+        if len(percents) > 0:
+            print(percents)
+            print('Average profit: ', sum(percents) / len(percents), '%', sep='')
+        else:
+            print(percents)
 
 
 if __name__ == "__main__":
