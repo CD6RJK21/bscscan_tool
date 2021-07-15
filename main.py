@@ -64,15 +64,29 @@ async def main():
             )
         bought_tokens = dict()
         percents = []
+        txs_in_trade = 0
+        value_plus = 0
+        n = 0
         for trade in address_trades:  # maybe use % of sold to all amount of bought
+            n += 1
+            try:
+                hash_value = await client.get_internal_txs_by_txhash(txhash=trade['hash'])
+            except AssertionError as ae:
+                continue
+            if n < (len(address_trades) - 1) and trade['nonce'] == address_trades[n]['nonce']:
+                txs_in_trade = 2
+            txs_in_trade -= 1
+            hash_value = hash_value[0]
+            bnb_per_coin = int(hash_value.get('value')) / (int(trade['value']) + value_plus)
             if trade.get('to').lower() == address.lower():
-                bought_tokens[trade.get('tokenSymbol')] = get_token_price(trade)
-            else:
+                bought_tokens[trade.get('tokenSymbol')] = bnb_per_coin
+            elif txs_in_trade <= 0:
                 if trade.get('tokenSymbol') in bought_tokens:
                     if bought_tokens[trade.get('tokenSymbol')]:
+                        value_plus = 0
                         # k = int(trade.get('value')) / bought_tokens[trade.get('tokenSymbol')][1]
-                        bought = bought_tokens[trade.get('tokenSymbol')] * int(trade['value'])  # last buy price * sold value
-                        sold = get_token_price(trade) * int(trade['value'])  # price when sold * sold value
+                        bought = bought_tokens[trade.get('tokenSymbol')]
+                        sold = bnb_per_coin
                         if bought != 0:
                             profit = (sold - bought) / bought * 100
                             if profit != 0.0:
@@ -80,6 +94,8 @@ async def main():
                                     percents.append(profit)
                                 elif len(percents) == 0:
                                     percents.append(profit)
+            else:
+                value_plus += int(trade['value'])
         if len(percents) > 0:
             print(percents)
             print('Average profit: ', sum(percents) / len(percents), '%', sep='')
@@ -91,4 +107,5 @@ if __name__ == "__main__":
     cg = CoinGeckoAPI()
     coins_list = cg.get_coins_list()
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(main())
+    for i in range(5):
+        asyncio.run(main())
