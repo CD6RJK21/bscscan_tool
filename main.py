@@ -107,4 +107,5 @@ if __name__ == "__main__":
     cg = CoinGeckoAPI()
     coins_list = cg.get_coins_list()
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(main())
+    for i in range(5):
+        asyncio.run(main())
