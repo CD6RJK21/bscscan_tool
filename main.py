@@ -1,49 +1,29 @@
 from bscscan import BscScan
 import asyncio
-from datetime import datetime
-from pycoingecko import CoinGeckoAPI
 import requests
 import time
 from bs4 import BeautifulSoup
 import xlsxwriter
+import json
+import os
+
+if os.path.exists('config.json'):
+    with open('config.json') as config_file:
+        config = json.load(config_file)
+else:
+    config = {'API_KEY': "BWPJX37Q9GKPHFFKWY6KEX7HTHACIB4533", 'MAX_USD_FOR_SCAN': 5000000, 'MIN_USD_FOR_SCAN': 50000,
+            'MAX_TRN': 1000, 'MIN_TRN': 50, 'START_PAGE': 1, 'END_PAGE': 400}
+    with open('config.json', 'w', encoding='utf-8') as config_file:
+        json.dump(config, config_file, ensure_ascii=False, indent=4)
 
 
-API_KEY = 'BWPJX37Q9GKPHFFKWY6KEX7HTHACIB4533'
-MAX_USD_FOR_SCAN = 5000000
-MIN_USD_FOR_SCAN = 5000
-MAX_TRN = 200
-MIN_TRN = 50
-START_PAGE = 50
-END_PAGE = 80
-
-
-def get_token_id(trade):
-    if type(trade) is dict:
-        return next((crypt.get('id') for crypt in coins_list if trade['tokenSymbol'].lower() == crypt['symbol'].lower()),
-                    '')
-    return next((crypt for crypt in coins_list if trade == crypt['symbol'].lower()), '')
-
-
-def get_token_price(trade):
-    date = datetime.fromtimestamp(int(trade['timeStamp']))
-    id = get_token_id(trade)
-    price = 0
-    if id != '':  # and id not in BAN
-        try:
-            # price = cg.get_coin_history_by_id(id, "{}-{}-{}".format(date.day, date.month, date.year))
-            # price = price['market_data']['current_price']['bnb']
-            price = cg.get_coin_market_chart_range_by_id(id, 'bnb',
-                                                         trade['timeStamp'], str(int(trade['timeStamp']) + 3600))
-            price = price['prices'][0][1]
-        except IndexError as ie:
-            price = 0
-
-        except KeyError as ke:
-            price = 0
-        except requests.exceptions.HTTPError as e429:
-            # time.sleep(60)
-            price = 0
-    return price
+API_KEY = config['API_KEY']
+MAX_USD_FOR_SCAN = config['MAX_USD_FOR_SCAN']
+MIN_USD_FOR_SCAN = config['MIN_USD_FOR_SCAN']
+MAX_TRN = config['MAX_TRN']
+MIN_TRN = config['MIN_TRN']
+START_PAGE = config['START_PAGE']
+END_PAGE = config['END_PAGE']
 
 
 async def get_roi(address):
@@ -111,7 +91,7 @@ async def get_addresses():
     curr_price = await client.get_bnb_last_price()
     curr_price = float(curr_price['ethusd'])
 
-    workbook = xlsxwriter.Workbook('merten.xlsx')
+    workbook = xlsxwriter.Workbook('merten.xlsx', {'constant_memory': True})
     worksheet = workbook.add_worksheet(name='addresses pages ' + str(START_PAGE) + ' - ' + str(END_PAGE))
     worksheet.write('A1', 'address')
     worksheet.write('B1', 'ROI%')
@@ -147,10 +127,27 @@ async def get_addresses():
     workbook.close()
 
 
+async def check_addresses():
+    if os.path.exists('addresses.txt'):
+        with open('addresses.txt', 'r', encoding='utf-8') as file:
+            addresses = [line.replace('\n', '') for line in file.readlines()]
+        result = []
+        curr_price = await client.get_bnb_last_price()
+        curr_price = float(curr_price['ethusd'])
+        for address in addresses:
+            balance = int(await client.get_bnb_balance(address=address)) / 1000000000000000000 * curr_price
+            result.append(address + ';' + str(get_roi(address)) + ';' + str(balance))
+        with open('result.txt', 'w', encoding='utf-8') as file:
+            file.write('\n'.join(result))
+        return 1
+    else:
+        return 0
+
+
 async def main():
     print('Hello! What do you need. Type the number of your request\n1 Scan address\n2 Scan addresses in the file',
           '3 Scan bscscan.com/accounts', sep='\n')
-    command = input()  # 0x1e2c0f0cc139a3781f866cb5b383c57ed620f7ca
+    command = input()
     global client
     async with BscScan(API_KEY) as client:
         if command == '1':
@@ -165,13 +162,14 @@ async def main():
                   )
             print('ROI%:', str(await get_roi(address)) + '%')
         elif command == '2':
-            pass
+            if await check_addresses():
+                print('done')
+            else:
+                print('error')
         elif command == '3':
             await get_addresses()
 
 
 if __name__ == "__main__":
-    cg = CoinGeckoAPI()
-    coins_list = cg.get_coins_list()
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main())
