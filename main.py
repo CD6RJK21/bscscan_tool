@@ -122,6 +122,7 @@ async def get_addresses():
                     worksheet.write('A' + str(row), address)
                     worksheet.write('B' + str(row), str(roi))
                     worksheet.write('C' + str(row), str(balance_in_usd))
+                    row += 1
                     print(address, balance_in_usd, roi)
                 # there goes writing
     workbook.close()
