@@ -97,7 +97,7 @@ async def get_addresses():
     worksheet.write('B1', 'ROI%')
     worksheet.write('C1', 'balance in USD')
     row = 2
-    for page_number in range(1, 400):
+    for page_number in range(START_PAGE, END_PAGE + 1):
         page = requests.get(url + str(page_number)).text
         soup = BeautifulSoup(page, features="html.parser")
         soup = soup.find('tbody')
