@@ -1,2 +1,5 @@
 bscscan-python >= 2.0.0
 pycoingecko
+requests
+beautifulsoup4
+xlsxwriter
