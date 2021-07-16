@@ -91,7 +91,7 @@ async def get_addresses():
     curr_price = await client.get_bnb_last_price()
     curr_price = float(curr_price['ethusd'])
 
-    workbook = xlsxwriter.Workbook('merten.xlsx', {'constant_memory': True})
+    workbook = xlsxwriter.Workbook('result.xlsx', {'constant_memory': True})
     worksheet = workbook.add_worksheet(name='addresses pages ' + str(START_PAGE) + ' - ' + str(END_PAGE))
     worksheet.write('A1', 'address')
     worksheet.write('B1', 'ROI%')
