@@ -162,7 +162,8 @@ async def check_addresses():
 
 
 async def main():
-    print('Hello! What do you need. Type the number of your request\n1 Scan address\n2 Scan addresses in the file',
+    print('Hello! What do you need. Type the number of your request\n1 Scan address',
+          '2 Scan addresses in the file (addresses.txt)',
           '3 Scan bscscan.com/accounts', sep='\n')
     command = input()
     global client
