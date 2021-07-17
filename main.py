@@ -134,9 +134,9 @@ async def get_addresses():
                 if roi[0] != 0:
                     roi, win_to_lose = roi[0], roi[1]
                     worksheet.write('A' + str(row), address)
-                    worksheet.write('B' + str(row), str(roi))
-                    worksheet.write('C' + str(row), str(win_to_lose))
-                    worksheet.write('D' + str(row), str(balance_in_usd))
+                    worksheet.write('B' + str(row), roi)
+                    worksheet.write('C' + str(row), win_to_lose)
+                    worksheet.write('D' + str(row), balance_in_usd)
                     row += 1
                     print(address, balance_in_usd, roi, win_to_lose)
                 # there goes writing
