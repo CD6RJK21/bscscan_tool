@@ -12,7 +12,7 @@ if os.path.exists('config.json'):
         config = json.load(config_file)
 else:
     config = {'API_KEY': "BWPJX37Q9GKPHFFKWY6KEX7HTHACIB4533", 'MAX_USD_FOR_SCAN': 5000000, 'MIN_USD_FOR_SCAN': 50000,
-            'MAX_TRN': 1000, 'MIN_TRN': 50, 'START_PAGE': 1, 'END_PAGE': 400}
+              'MAX_TRN': 1000, 'MIN_TRN': 50, 'START_PAGE': 1, 'END_PAGE': 400}
     with open('config.json', 'w', encoding='utf-8') as config_file:
         json.dump(config, config_file, ensure_ascii=False, indent=4)
 
@@ -26,7 +26,7 @@ START_PAGE = config['START_PAGE']
 END_PAGE = config['END_PAGE']
 
 
-async def get_roi(address):
+async def get_transfers(address):
     try:
         address_trades = await client.get_bep20_token_transfer_events_by_address(  # get_normal_txs_by_address
             address=address,
@@ -36,7 +36,7 @@ async def get_roi(address):
         )
     except AssertionError as AE:
         if 'No transactions found' in str(AE):
-            return 0, 0
+            return []
         time.sleep(0.25)
         try:
             address_trades = await client.get_bep20_token_transfer_events_by_address(  # get_normal_txs_by_address
@@ -46,9 +46,11 @@ async def get_roi(address):
                 sort="asc"
             )
         except AssertionError as AE:
-            return 0, 0
-    if (len(address_trades) < MIN_TRN) or (len(address_trades) > MAX_TRN):
-        return 0, 0
+            return []
+    return address_trades
+
+
+async def get_roi(address, address_trades):
     bought_tokens = dict()
     percents = []
     url = 'https://bscscan.com/tx/'
@@ -67,7 +69,7 @@ async def get_roi(address):
                     soup = soup.find('ul', {'class': 'list-unstyled mb-0', 'id': 'wrapperContent'})
                     # soup = soup.find_all('li', {'class': 'media align-items-baseline mb-2'})
                     span = soup.find('span', {'data-toggle': 'tooltip', 'data-original-title': True})
-                    bnb_value = float(span.text.split()[0])
+                    bnb_value = float(span.text.split()[0].replace(',', ''))
                 except AttributeError as AE:
                     pass
             else:
@@ -154,7 +156,10 @@ async def get_addresses():
                 except IndexError as IE:
                     address = str(element.contents[1].contents[0].contents[0])
                 time.sleep(0.2)
-                roi = await get_roi(address)
+                address_trades = await get_transfers(address)
+                if (len(address_trades) < MIN_TRN) or (len(address_trades) > MAX_TRN):
+                    continue
+                roi = await get_roi(address, await get_transfers(address))
                 balance_in_usd = bnb_amount * curr_price
                 if roi[0] != 0:
                     roi, win_to_lose = roi[0], roi[1]
@@ -177,7 +182,7 @@ async def check_addresses():
         curr_price = float(curr_price['ethusd'])
         for address in addresses:
             balance = int(await client.get_bnb_balance(address=address)) / 1000000000000000000 * curr_price
-            roi = await get_roi(address)
+            roi = await get_roi(address, await get_transfers(address))
             result.append(address + ';' + str(roi[0]) + ';' + str(balance))
         with open('result.txt', 'w', encoding='utf-8') as file:
             file.write('\n'.join(result))
@@ -203,7 +208,7 @@ async def main():
                       address=address
                   )) / 1000000000000000000 * curr_price, 'USD'
                   )
-            roi = await get_roi(address)
+            roi = await get_roi(address, await get_transfers(address))
             print('ROI%:', str(roi[0]) + '%')
             print('Win to lose:', str(roi[1]) + '%')
         elif command == '2':
