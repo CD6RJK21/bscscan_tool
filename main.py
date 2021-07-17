@@ -179,6 +179,7 @@ async def main():
                   )
             roi = await get_roi(address)
             print('ROI%:', str(roi[0]) + '%')
+            print('Win to lose:', str(roi[1]) + '%')
         elif command == '2':
             if await check_addresses():
                 print('done')
