@@ -42,7 +42,7 @@ async def get_roi(address):
             address_trades = await client.get_bep20_token_transfer_events_by_address(  # get_normal_txs_by_address
                 address=address,
                 startblock=0,
-                endblock=999999999,
+                endblock=9999999999,
                 sort="asc"
             )
         except AssertionError as AE:
@@ -51,31 +51,56 @@ async def get_roi(address):
         return 0, 0
     bought_tokens = dict()
     percents = []
+    url = 'https://bscscan.com/tx/'
     for trade in address_trades:
+        hash_value = 0
+        bnb_value = -1
+        # if trade.get('tokenSymbol') == 'MommyDoge':
+        #     print('a')
         try:
             hash_value = await client.get_internal_txs_by_txhash(txhash=trade['hash'])
         except AssertionError as ae:
-            continue
-        hash_value = hash_value[0]
-
+            if str(ae) == '[] -- No transactions found':
+                try:
+                    page = requests.get(url + trade['hash']).text
+                    soup = BeautifulSoup(page, features="html.parser")
+                    soup = soup.find('ul', {'class': 'list-unstyled mb-0', 'id': 'wrapperContent'})
+                    # soup = soup.find_all('li', {'class': 'media align-items-baseline mb-2'})
+                    span = soup.find('span', {'data-toggle': 'tooltip', 'data-original-title': True})
+                    bnb_value = float(span.text.split()[0])
+                except AttributeError as AE:
+                    pass
+            else:
+                time.sleep(0.5)
+                try:
+                    hash_value = await client.get_internal_txs_by_txhash(txhash=trade['hash'])
+                except AssertionError as ae:
+                    continue
+        if bnb_value <= -1:
+            if hash_value == 0:
+                continue
+            bnb_value = int(hash_value[0].get('value')) / 1000000000000000000
+        # if trade.get('tokenSymbol') == 'MommyDoge':
+        #     print('f')
         if trade.get('to').lower() == address.lower():  # buying
             if trade.get('tokenSymbol') in bought_tokens:
-                bought_tokens[trade.get('tokenSymbol')][0] += int(hash_value.get('value')) / 1000000000000000000
+                bought_tokens[trade.get('tokenSymbol')][0] += bnb_value
                 bought_tokens[trade.get('tokenSymbol')][1] += int(trade.get('value'))
             else:
-                bought_tokens[trade.get('tokenSymbol')] = [int(hash_value.get('value')) / 1000000000000000000,
+                bought_tokens[trade.get('tokenSymbol')] = [bnb_value,
                                                            int(trade.get('value')), 0, 0]
         else:  # selling
             if trade.get('tokenSymbol') in bought_tokens:
-                bought_tokens[trade.get('tokenSymbol')][2] += int(hash_value.get('value')) / 1000000000000000000
+                bought_tokens[trade.get('tokenSymbol')][2] += bnb_value
                 bought_tokens[trade.get('tokenSymbol')][3] += int(trade.get('value'))
             else:
-                bought_tokens[trade.get('tokenSymbol')] = [0, 0, int(hash_value.get('value')) / 1000000000000000000,
-                                                           int(trade.get('value'))]
+                bought_tokens[trade.get('tokenSymbol')] = [0, 0, bnb_value, int(trade.get('value'))]
         time.sleep(0.2)
     won = 0
     lose = 0
     for key in bought_tokens.keys():
+        # if key == 'MommyDoge':
+        #     print('Мамуля♥')
         bought = bought_tokens[key][0]
         sold = bought_tokens[key][2]
         if bought != 0:
