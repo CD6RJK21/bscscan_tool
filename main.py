@@ -36,7 +36,7 @@ async def get_roi(address):
         )
     except AssertionError as AE:
         if 'No transactions found' in str(AE):
-            return 0
+            return 0, 0
         time.sleep(0.25)
         try:
             address_trades = await client.get_bep20_token_transfer_events_by_address(  # get_normal_txs_by_address
@@ -46,9 +46,9 @@ async def get_roi(address):
                 sort="asc"
             )
         except AssertionError as AE:
-            return 0
+            return 0, 0
     if (len(address_trades) < MIN_TRN) or (len(address_trades) > MAX_TRN):
-        return 0
+        return 0, 0
     bought_tokens = dict()
     percents = []
     for trade in address_trades:
@@ -89,7 +89,7 @@ async def get_roi(address):
     if len(percents) > 0:
         return sum(percents) / len(percents), won / lose
     else:
-        return 0
+        return 0, 0
 
 
 async def get_addresses():
@@ -124,9 +124,9 @@ async def get_addresses():
                     address = str(element.contents[1].contents[0].contents[0])
                 time.sleep(0.2)
                 roi = await get_roi(address)
-                roi, win_to_lose = roi[0], roi[1]
                 balance_in_usd = bnb_amount * curr_price
-                if roi != 0:
+                if roi[0] != 0:
+                    roi, win_to_lose = roi[0], roi[1]
                     worksheet.write('A' + str(row), address)
                     worksheet.write('B' + str(row), str(roi))
                     worksheet.write('C' + str(row), str(win_to_lose))
