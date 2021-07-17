@@ -73,15 +73,21 @@ async def get_roi(address):
                 bought_tokens[trade.get('tokenSymbol')] = [0, 0, int(hash_value.get('value')) / 1000000000000000000,
                                                            int(trade.get('value'))]
         time.sleep(0.2)
+    won = 0
+    lose = 0
     for key in bought_tokens.keys():
         bought = bought_tokens[key][0]
         sold = bought_tokens[key][2]
         if bought != 0:
             roi = sold / bought * 100
-            if roi != 100 and roi != 0:
+            if roi != 0:
                 percents.append(roi)
+                if roi >= 100:
+                    won += 1
+                else:
+                    lose += 1
     if len(percents) > 0:
-        return sum(percents) / len(percents)
+        return sum(percents) / len(percents), won / lose
     else:
         return 0
 
@@ -95,7 +101,8 @@ async def get_addresses():
     worksheet = workbook.add_worksheet(name='addresses pages ' + str(START_PAGE) + ' - ' + str(END_PAGE))
     worksheet.write('A1', 'address')
     worksheet.write('B1', 'ROI%')
-    worksheet.write('C1', 'balance in USD')
+    worksheet.write('C1', 'win to lose')
+    worksheet.write('D1', 'balance in USD')
     row = 2
     for page_number in range(START_PAGE, END_PAGE + 1):
         page = requests.get(url + str(page_number)).text
@@ -116,14 +123,15 @@ async def get_addresses():
                 except IndexError as IE:
                     address = str(element.contents[1].contents[0].contents[0])
                 time.sleep(0.2)
-                roi = await get_roi(address)
+                roi, win_to_lose = await get_roi(address)
                 balance_in_usd = bnb_amount * curr_price
                 if roi != 0:
                     worksheet.write('A' + str(row), address)
                     worksheet.write('B' + str(row), str(roi))
-                    worksheet.write('C' + str(row), str(balance_in_usd))
+                    worksheet.write('C' + str(row), str(win_to_lose))
+                    worksheet.write('D' + str(row), str(balance_in_usd))
                     row += 1
-                    print(address, balance_in_usd, roi)
+                    print(address, balance_in_usd, roi, win_to_lose)
                 # there goes writing
     workbook.close()
 
@@ -137,7 +145,8 @@ async def check_addresses():
         curr_price = float(curr_price['ethusd'])
         for address in addresses:
             balance = int(await client.get_bnb_balance(address=address)) / 1000000000000000000 * curr_price
-            result.append(address + ';' + str(get_roi(address)) + ';' + str(balance))
+            roi = await get_roi(address)
+            result.append(address + ';' + str(roi[0]) + ';' + str(balance))
         with open('result.txt', 'w', encoding='utf-8') as file:
             file.write('\n'.join(result))
         return 1
@@ -161,7 +170,8 @@ async def main():
                       address=address
                   )) / 1000000000000000000 * curr_price, 'USD'
                   )
-            print('ROI%:', str(await get_roi(address)) + '%')
+            roi = await get_roi(address)
+            print('ROI%:', str(roi[0]) + '%')
         elif command == '2':
             if await check_addresses():
                 print('done')
