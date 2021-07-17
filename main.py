@@ -86,8 +86,14 @@ async def get_roi(address):
                     won += 1
                 else:
                     lose += 1
+    if won > 0 and lose == 0:
+        win_to_lose = 100
+    elif lose > 0:
+        win_to_lose = won / (won + lose) * 100
+    else:
+        win_to_lose = 0
     if len(percents) > 0:
-        return sum(percents) / len(percents), won / lose
+        return sum(percents) / len(percents), win_to_lose
     else:
         return 0, 0
 
@@ -97,7 +103,7 @@ async def get_addresses():
     curr_price = await client.get_bnb_last_price()
     curr_price = float(curr_price['ethusd'])
 
-    workbook = xlsxwriter.Workbook('result.xlsx', {'constant_memory': True})
+    workbook = xlsxwriter.Workbook('result.xlsx')
     worksheet = workbook.add_worksheet(name='addresses pages ' + str(START_PAGE) + ' - ' + str(END_PAGE))
     worksheet.write('A1', 'address')
     worksheet.write('B1', 'ROI%')
