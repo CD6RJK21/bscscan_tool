@@ -24,6 +24,7 @@ MAX_TRN = config['MAX_TRN']
 MIN_TRN = config['MIN_TRN']
 START_PAGE = config['START_PAGE']
 END_PAGE = config['END_PAGE']
+headers = {'User-Agent'}
 
 
 async def get_transfers(address):
@@ -64,7 +65,7 @@ async def get_roi(address, address_trades):
         except AssertionError as ae:
             if str(ae) == '[] -- No transactions found':
                 try:
-                    page = requests.get(url + trade['hash']).text
+                    page = requests.get(url + trade['hash'], headers=headers, timeout=(10, 0.01)).text
                     soup = BeautifulSoup(page, features="html.parser")
                     soup = soup.find('ul', {'class': 'list-unstyled mb-0', 'id': 'wrapperContent'})
                     # soup = soup.find_all('li', {'class': 'media align-items-baseline mb-2'})
@@ -73,7 +74,7 @@ async def get_roi(address, address_trades):
                 except AttributeError as AE:
                     pass
             else:
-                time.sleep(0.5)
+                time.sleep(0.2)
                 try:
                     hash_value = await client.get_internal_txs_by_txhash(txhash=trade['hash'])
                 except AssertionError as ae:
@@ -97,7 +98,7 @@ async def get_roi(address, address_trades):
                 bought_tokens[trade.get('tokenSymbol')][3] += int(trade.get('value'))
             else:
                 bought_tokens[trade.get('tokenSymbol')] = [0, 0, bnb_value, int(trade.get('value'))]
-        time.sleep(0.2)
+
     won = 0
     lose = 0
     for key in bought_tokens.keys():
@@ -155,11 +156,11 @@ async def get_addresses():
                     address = str(element.contents[1].contents[0].contents[1].contents[0])
                 except IndexError as IE:
                     address = str(element.contents[1].contents[0].contents[0])
-                time.sleep(0.2)
                 address_trades = await get_transfers(address)
                 if (len(address_trades) < MIN_TRN) or (len(address_trades) > MAX_TRN):
                     continue
-                roi = await get_roi(address, await get_transfers(address))
+                address_trades = await get_transfers(address)
+                roi = await get_roi(address, address_trades)
                 balance_in_usd = bnb_amount * curr_price
                 if roi[0] != 0:
                     roi, win_to_lose = roi[0], roi[1]
@@ -182,8 +183,9 @@ async def check_addresses():
         curr_price = float(curr_price['ethusd'])
         for address in addresses:
             balance = int(await client.get_bnb_balance(address=address)) / 1000000000000000000 * curr_price
-            roi = await get_roi(address, await get_transfers(address))
-            result.append(address + ';' + str(roi[0]) + ';' + str(balance))
+            address_trades = await get_transfers(address)
+            roi = await get_roi(address, address_trades)
+            result.append(address + ';' + str(roi[0]) + ';' + str(roi[0]) + ';' + str(balance))
         with open('result.txt', 'w', encoding='utf-8') as file:
             file.write('\n'.join(result))
         return 1
@@ -195,29 +197,32 @@ async def main():
     print('Hello! What do you need. Type the number of your request\n1 Scan address',
           '2 Scan addresses in the file (addresses.txt)',
           '3 Scan bscscan.com/accounts', sep='\n')
-    command = input()
-    global client
-    async with BscScan(API_KEY) as client:
-        if command == '1':
-            print('Type your address: ', end='')
-            address = input()
-            curr_price = await client.get_bnb_last_price()
-            curr_price = float(curr_price['ethusd'])
-            print('balance:',
-                  int(await client.get_bnb_balance(
-                      address=address
-                  )) / 1000000000000000000 * curr_price, 'USD'
-                  )
-            roi = await get_roi(address, await get_transfers(address))
-            print('ROI%:', str(roi[0]) + '%')
-            print('Win to lose:', str(roi[1]) + '%')
-        elif command == '2':
-            if await check_addresses():
-                print('done')
-            else:
-                print('error')
-        elif command == '3':
-            await get_addresses()
+    while True:
+        command = input()
+        global client
+        async with BscScan(API_KEY) as client:
+            if command == '1':
+                print('Type your address: ', end='')
+                address = input()
+                curr_price = await client.get_bnb_last_price()
+                curr_price = float(curr_price['ethusd'])
+                print('balance:',
+                      int(await client.get_bnb_balance(
+                          address=address
+                      )) / 1000000000000000000 * curr_price, 'USD'
+                      )
+                address_trades = await get_transfers(address)
+                roi = await get_roi(address, address_trades)
+                print('ROI%:', str(roi[0]) + '%')
+                print('Win to lose:', str(roi[1]) + '%')
+            elif command == '2':
+                if await check_addresses():
+                    print('done')
+                else:
+                    print('error')
+            elif command == '3':
+                await get_addresses()
+            print('--------------------------------------')
 
 
 if __name__ == "__main__":
