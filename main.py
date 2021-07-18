@@ -68,7 +68,6 @@ async def get_roi(address, address_trades):
                     page = requests.get(url + trade['hash'], headers=headers, timeout=(10, 0.01)).text
                     soup = BeautifulSoup(page, features="html.parser")
                     soup = soup.find('ul', {'class': 'list-unstyled mb-0', 'id': 'wrapperContent'})
-                    # soup = soup.find_all('li', {'class': 'media align-items-baseline mb-2'})
                     span = soup.find('span', {'data-toggle': 'tooltip', 'data-original-title': True})
                     bnb_value = float(span.text.split()[0].replace(',', ''))
                 except AttributeError as AE:
@@ -159,7 +158,7 @@ async def get_addresses():
                 address_trades = await get_transfers(address)
                 if (len(address_trades) < MIN_TRN) or (len(address_trades) > MAX_TRN):
                     continue
-                address_trades = await get_transfers(address)
+
                 roi = await get_roi(address, address_trades)
                 balance_in_usd = bnb_amount * curr_price
                 if roi[0] != 0:
